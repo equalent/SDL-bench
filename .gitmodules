@@ -1,0 +1,4 @@
+[submodule "external/SDL"]
+	path = external/SDL
+	url = https://github.com/equalent/SDL.git
+	branch = equalent-gpuquery
