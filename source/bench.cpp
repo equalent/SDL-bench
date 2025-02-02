@@ -4,6 +4,21 @@
 #include "imgui/imgui_impl_sdl3.h"
 #include "imgui/imgui_impl_sdlgpu3.h"
 
+struct BnDriverEntry
+{
+    const char* name;
+    SDL_GPUShaderFormat format;
+    const char* description;
+    const char* descriptionDebug;
+};
+
+static const BnDriverEntry drivers[] = {
+    { "vulkan", SDL_GPU_SHADERFORMAT_SPIRV, "Vulkan", "Vulkan (DEBUG)"},
+    { "direct3d12", SDL_GPU_SHADERFORMAT_DXIL, "DX12", "DX12 (DEBUG)"}
+};
+
+constexpr int k_driverCount = sizeof(drivers) / sizeof(drivers[0]);
+
 BnContext* bnCreateContext(int width, int height)
 {
     BnContext* ctx = new BnContext();
@@ -18,13 +33,70 @@ BnContext* bnCreateContext(int width, int height)
         return nullptr;
     }
 
-    ctx->device = SDL_CreateGPUDevice(SDL_GPU_SHADERFORMAT_DXIL, false, "direct3d12");
+    SDL_GPUShaderFormat chosenFormat = SDL_GPU_SHADERFORMAT_INVALID;
+    const char* chosenDriver = nullptr;
+    bool chosenDebugMode = false;
+
+    // chooser
+    {
+        SDL_MessageBoxButtonData buttons[k_driverCount * 2] = {};
+        for (int i = 0; i < k_driverCount; ++i)
+        {
+            int baseIdx = i * 2;
+
+            buttons[baseIdx].flags = 0;
+            buttons[baseIdx].buttonID = baseIdx;
+            buttons[baseIdx].text = drivers[i].description;
+
+            buttons[baseIdx + 1].flags = 0;
+            buttons[baseIdx + 1].buttonID = baseIdx + 1;
+            buttons[baseIdx + 1].text = drivers[i].descriptionDebug;
+        }
+
+        SDL_MessageBoxData mbd = {};
+        mbd.flags = SDL_MESSAGEBOX_BUTTONS_LEFT_TO_RIGHT;
+        mbd.window = ctx->window;
+        mbd.title = "SDL Bench :: Implementation";
+        mbd.message = "Please select the GPU API to use";
+        mbd.numbuttons = k_driverCount * 2;
+        mbd.buttons = buttons;
+
+        int buttonId = 0;
+        if (SDL_ShowMessageBox(&mbd, &buttonId) < 0)
+        {
+            bnLogError("SDL_ShowMessageBox failed: %s", SDL_GetError());
+            bnDestroyContext(ctx);
+            return nullptr;
+        }
+
+        int driverId = buttonId / 2;
+        chosenDebugMode = buttonId % 2 == 1;
+
+        if (driverId < 0 || driverId >= k_driverCount)
+        {
+            chosenDriver = nullptr;
+            chosenFormat = SDL_GPU_SHADERFORMAT_SPIRV | SDL_GPU_SHADERFORMAT_DXIL;
+        }
+        else
+        {
+            chosenDriver = drivers[driverId].name;
+            chosenFormat = drivers[driverId].format;
+        }
+    }
+
+
+    ctx->device = SDL_CreateGPUDevice(chosenFormat, false, chosenDriver);
     if (!ctx->device)
     {
         bnLogError("SDL_CreateGPUDevice failed: %s", SDL_GetError());
         bnDestroyContext(ctx);
         return nullptr;
     }
+
+    ctx->driver = SDL_GetGPUDeviceDriver(ctx->device);
+    char windowTitle[256];
+    SDL_snprintf(windowTitle, sizeof(windowTitle), "SDL Bench [%s]", ctx->driver);
+    SDL_SetWindowTitle(ctx->window, windowTitle);
 
     ctx->windowClaimed = SDL_ClaimWindowForGPUDevice(ctx->device, ctx->window);
     if (!ctx->windowClaimed)

@@ -8,6 +8,7 @@ struct BnContext
     int height = 0;
 
     SDL_GPUDevice* device = nullptr;
+    const char* driver = nullptr;
     bool windowClaimed = false;
 
     ImGuiContext* imguiContext = nullptr;
