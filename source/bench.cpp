@@ -25,7 +25,7 @@ BnContext* bnCreateContext(int width, int height)
     ctx->width = width;
     ctx->height = height;
 
-    ctx->window = SDL_CreateWindow("SDL Bench", width, height, SDL_WINDOW_RESIZABLE);
+    ctx->window = SDL_CreateWindow("SDL Bench", width, height, SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY);
     if (!ctx->window)
     {
         bnLogError("SDL_CreateWindow failed: %s", SDL_GetError());
@@ -37,6 +37,7 @@ BnContext* bnCreateContext(int width, int height)
     const char* chosenDriver = nullptr;
     bool chosenDebugMode = false;
 
+#if !defined(__APPLE__)
     // chooser
     {
         SDL_MessageBoxButtonData buttons[k_driverCount * 2] = {};
@@ -83,6 +84,9 @@ BnContext* bnCreateContext(int width, int height)
             chosenFormat = drivers[driverId].format;
         }
     }
+#else
+    chosenFormat = SDL_GPU_SHADERFORMAT_METALLIB;
+#endif
 
 
     ctx->device = SDL_CreateGPUDevice(chosenFormat, false, chosenDriver);
@@ -181,6 +185,7 @@ static void bnHandleEvent(BnContext* ctx, const SDL_Event& event)
     switch (event.type)
     {
     case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
+    case SDL_EVENT_QUIT:
         ctx->running = false;
         return;
     case SDL_EVENT_WINDOW_RESIZED:
